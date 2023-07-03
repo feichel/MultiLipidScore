@@ -17,3 +17,5 @@ RoxygenNote: 7.0.0
 Imports: 
     knitr,
     rmarkdown
+URL: https://github.com/feichel/DIVAS.score
+BugReports: https://github.com/feichel/DIVAS.score/issues
