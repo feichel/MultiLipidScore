@@ -3,7 +3,6 @@
 .RData
 .Rbuildignore
 doc
-TODO.md
 data
 matched_epic_predimed.rds
 ncc.csv
@@ -17,4 +16,5 @@ R/deprecated_211213
 R/deprecated_230705
 R/not_repo
 R/Separate_scores
-R/DIVAS.score.Rproj
+DIVAS.score.Rproj
+.gitignore
