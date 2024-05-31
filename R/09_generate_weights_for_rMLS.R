@@ -59,7 +59,6 @@ make_proxy_lip <- function(.variables) {
     unnest(coeffs) %>%
     filter(within_class_fa_sum == paste(.variables))
 
-
   lipids_to_score <- df_lips_for_score %>%
     select(select_lips$term)
 
@@ -75,7 +74,7 @@ results_matching %>%
 
 # calculate predicted within-class fa sum
 prox_lips <- map_dfc(results_matching$within_class_fa_sum %>%
-          set_names(.), make_proxy_lip)
+                       set_names(.), make_proxy_lip)
 
 
 # function to assess predicted vs original within-class fa sum correlation

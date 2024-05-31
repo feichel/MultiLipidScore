@@ -1,11 +1,14 @@
 # Functions and packages
 library(tidyverse)
+library(patchwork)
+
+
 source(here::here("R/00_functions.R"))
 
 # load weights
-comb_weights_z <- read_rds(here::here("data/weigths_comb_score.rds"))
+comb_weights <- read_rds(here::here("data/weigths_comb_score.rds"))
 sep_weights <- read_rds(here::here("data/weigths_separate_scores.rds"))
-weigths_all <- bind_rows(comb_weights_z, sep_weights)
+weigths_all <- bind_rows(comb_weights, sep_weights)
 
 # get clean lipid names
 fa_species <- read_csv("/home/fabian/lipidomics.cardiometabolic.diseases/doc/Tables/full_results.csv") %>%
@@ -24,7 +27,7 @@ fa_species <- read_csv("/home/fabian/lipidomics.cardiometabolic.diseases/doc/Tab
 selected_fig <- fa_species %>%
   mutate(fa = str_c(length1, ":", db1) %>%
            fct_inorder(),
-         diet = if_else(lipid_display %in% comb_weights_z$lipid_display, "Selected", "Not selected")) %>%
+         diet = if_else(lipid_display %in% comb_weights$lipid_display, "Selected", "Not selected")) %>%
   ggplot(aes(y = fct_rev(fa),
              x = reorder_base_new(base))) +
   scale_fill_manual(values = c("Selected" = "#264653",
@@ -48,8 +51,7 @@ selected_fig <- fa_species %>%
         legend.direction = "horizontal",
         legend.key.size = unit(units = "cm", x = 0.2),
         text = element_text(color = "#333333"))
-# +
-#   guides(fill = guide_legend(override.aes = list(size = 5)))
+
 
 
 
@@ -63,7 +65,7 @@ order <- weigths_all %>%
   arrange(fct_rev(base), -estimate)
 
 
-df_figure_weights <- comb_weights_z %>%
+df_figure_weights <- comb_weights %>%
   select(lipid_display, model, base) %>%
   left_join(fa_species) %>%
   mutate(coeffs = map(model, ~broom::tidy(., conf.int = TRUE))) %>%
@@ -80,7 +82,7 @@ estimate_figure <- df_figure_weights %>%
                       xmax = conf.high),
                   shape = "square") +
   labs(y = NULL,
-       x = "UFA intervention effect relative\nto SFA-rich diet (95%-CI) [Z-scores]",
+       x = "UFA intervention effect relative\nto SFA-rich diet (95%-CI) [log(μM)]",
        fill = NULL) +
   theme_light(base_family = "RobotoCondensed-Regular") +
   geom_vline(xintercept = 0, lty = 2) +
@@ -110,9 +112,6 @@ weight_column <- df_figure_weights %>%
         plot.margin = margin(0,0,0,0))
 
 
-library(patchwork)
-# weights_fig <- estimate_figure + weight_column + patchwork::plot_layout(widths = c(10, 1))
-
 
 
 # DIVAS target composition ------------------------------------------------
@@ -121,6 +120,7 @@ target_comp <- tribble(
   ~diet, ~sfa_t, ~ufa_t,
   "SFA-rich diet", 17, 15,
   "UFA-rich diet", 9, 23)
+
 
 
 target_comp_fig <- target_comp %>%
@@ -158,6 +158,7 @@ target_comp_fig <- target_comp %>%
                           name = "sfa_t"),
             label = "UFA",
             color = "black")
+
 
 
 
@@ -254,8 +255,10 @@ figure <- target_comp_fig +  estimate_figure + selected_fig + divas_effects_fig 
   plot_annotation(tag_levels = "A")
 
 
-# Set path
-path <- here::here("doc", "Figures", "Figure_2")
+
+path_to <- ("/home/fabian/alle_shortcut/!MEP/Projekte/EPIC-Potsdam/Diabetes/Lipidomics/MultiLipidScore/AIP/")
+
+path <- str_c(path_to, "Figure_2")
 
 # Save as pdf
 ggsave(plot = figure,
@@ -271,7 +274,71 @@ pdftools::pdf_convert(pdf = glue::glue("{path}.pdf"),
                       format = "png",
                       dpi = 400)
 
+
+
+
+# extended figure 1
+achieved_comp <- tribble(
+  ~diet, ~t_a, ~sfa_t, ~ufa_t,
+  "SFA-rich diet", "Target", 17, 15,
+  "UFA-rich diet", "Target", 9, 23,
+  "SFA-rich diet", "Achieved", 17.6, 14.5,
+  "UFA-rich diet", "Achieved", 8.05, 24)
+
+
+figure <- achieved_comp |>
+  pivot_longer(-c(diet, t_a)) %>%
+  ggplot(aes(y = t_a,
+             x = value,
+             fill = fct_rev(name))) +
+  geom_bar(position = "stack", stat = "identity",
+           orientation = "y",
+           show.legend = FALSE,
+           alpha = 0.5) +
+  facet_wrap(~diet,
+             scales = "free_y",
+             ncol = 1) +
+  labs(x = "Target % of total energy intake",
+       y = NULL,
+       fill = NULL) +
+  scale_fill_manual(values = c("sfa_t" = "#e9c46a",
+                               "ufa_t" = "#2a9d8f")) +
+  theme_light(base_family = "RobotoCondensed-Regular") +
+  coord_cartesian(expand = FALSE) +
+  theme(panel.grid = element_blank(),
+        text = element_text(color = "black"),
+        strip.background = element_blank(),
+        strip.text = element_text(color = "black"),
+        axis.ticks.y = element_blank()) +
+  geom_text(data = tibble(diet = "SFA-rich diet",
+                          value = 17/2,
+                          t_a = "Target",
+                          name = "sfa_t"),
+            label = "SFA",
+            color = "black") +
+  geom_text(data = tibble(diet = "SFA-rich diet",
+                          value = 17 + (15 / 2),
+                          name = "sfa_t",
+                          t_a = "Target"),
+            label = "UFA",
+            color = "black")
+
+
+
+path_to <- ("/home/fabian/alle_shortcut/!MEP/Projekte/EPIC-Potsdam/Diabetes/Lipidomics/MultiLipidScore/AIP/")
+
+path <- str_c(path_to, "Extended_Figure_1")
+
+# Save as pdf
+ggsave(plot = figure,
+       glue::glue("{path}.pdf", ),
+       device = cairo_pdf,
+       width = 15,
+       height = 10,
+       units = "cm")
+
+# Convert to png and save
 pdftools::pdf_convert(pdf = glue::glue("{path}.pdf"),
-                      filenames = glue::glue("{path}.jpg"),
-                      format = "jpg",
+                      filenames = glue::glue("{path}.png"),
+                      format = "png",
                       dpi = 400)

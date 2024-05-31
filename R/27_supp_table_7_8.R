@@ -24,7 +24,17 @@ df_figure_weights %>%
   separate(lipid, remove = FALSE, into = c("class", "l", "db"),
            extra = "drop") %>%
   mutate(shorthand = str_c(l, ":", db) %>%
-           str_remove("FA")) %>%
+           str_remove("FA"),
+         unit = "(µmol/L)") %>%
   left_join(fa_infos) %>%
-  select(lipid, class, fa_short_hand = shorthand, common_name, weight) %>%
-  xlsx::write.xlsx(., here::here("doc/weights_list.xlsx"))
+  select(lipid, class, fa_short_hand = shorthand, common_name, weight, unit) %>%
+  xlsx::write.xlsx(., "/home/fabian/alle_shortcut/!MEP/Projekte/EPIC-Potsdam/Diabetes/Lipidomics/MultiLipidScore/Revision_1/supplemental_table_7_8.xlsx")
+
+
+# full formula for copy and paste
+df_figure_weights |>
+  select(lipid_display, estimate) |>
+  mutate(estimate = str_c("(", round(estimate, 2), ")", "*", lipid_display, " (µmol/L)")) |>
+  pivot_longer(-lipid_display) |>
+  summarize(formula = str_c(value, collapse = " + "), .by = name) |>
+  pull(formula)

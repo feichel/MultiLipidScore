@@ -68,17 +68,3 @@ bind_rows(divas_effects,
   mutate(var = fct_relevel(var, c("HDL-C", "Non-HDL-C", "TG", "Fasting glucose", "HOMA-IR",
                                   "hsCRP", "IL-6", "Lipidomics-score", "Lipidomics-score + non-HDL")))
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-

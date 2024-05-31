@@ -1,51 +1,40 @@
+
+# Install netcoupler
 # pak::pkg_install("netCoupler/netCoupler")
 
+
+# Load libraries
 library(tidyverse)
 library(NetCoupler)
 library(ggraph)
 library(tidygraph)
 library(survival)
 
+# Source functions
 source(here::here("R/00_functions.R"))
 
-
-
+# Estimate network and identify clusters of lipids
+set.seed(123)
 network <- read_rds(here::here("data/data_for_clusters.rds")) %>%
   filter(ia_subcohort == 1) %>%
   select(-c(omics_id, ia_subcohort)) %>%
   NetCoupler::nc_estimate_network(everything()) %>%
   mutate(louvain = as.factor(tidygraph::group_louvain()))
 
-         # fast_greedy = as.factor(tidygraph::group_fast_greedy()),
-         # walktrap = as.factor(tidygraph::group_walktrap()))
+write_rds(network, file = here::here("data/network.rds"))
 
 
 
+# rename lipids and wrangle network data
 lipid_names <- network %>%
   pull(1) %>%
-  tibble(lipid = .) %>%
-  mutate(lipid = str_replace(lipid, "pe_o", "peo") %>%
-           str_replace("pe_p", "pep")) %>%
-  separate(lipid, into = c("base", "length", "db"), remove = FALSE) %>%
-  mutate(length = str_remove(length, "fa"),
-         base = str_to_upper(base) %>%
-           str_replace("TAG", "TG") %>%
-           str_replace("MAG", "MG") %>%
-           str_replace("DAG", "DG") %>%
-           str_replace("LCER", "LacCER") %>%
-           str_replace("HCER", "HexCER") %>%
-           str_replace("DCER", "dhCER") %>%
-           str_replace("CER", "Cer") %>%
-           str_remove("ONLY"),
-         fa = str_c(length, ":", db),
-         lipid = str_replace(lipid, "peo_", "pe_o_") %>%
-           str_replace("pep_", "pe_p_"))
+  tibble(lipid = .) |>
+  epic_lip_names()
 
 
 
-
-# SNAhelper
-# network
+# use SNAhelper to manually move nodes to make it look pretty
+# save node positions and hard code
 
 x <- c(1.4368, 0.7345, 1.3802, -0.2686, 0.3683, -0.8742, -0.1354, -1.0144, 0.567, 1.2219, 0.5282, 2.1495, 2.8793,
        2.1654, 2.7751, 2.5173, -0.2004, -0.8838, -0.0808, 0.1981, -1.2998, -0.1465, -0.7681, 1.1789, 0.339, 0.0098,
@@ -57,7 +46,7 @@ y <- c(0.3328, 1.6106, 1.67, 2.2269, 0.6751, 2.4622, -0.3412, -1.0879, -1.294, 3
        -0.1558, 0.8401, 0.8047, 1.3241, -0.98, -2.0481)
 
 
-
+# plot network with cluster identification
 network_figure <- network %>%
   left_join(lipid_names, by = c("name" = "lipid")) %>%
   ggraph(layout = "manual", x = x, y = y) +
@@ -97,76 +86,71 @@ network_figure <- network %>%
   guides(color = guide_legend(override.aes = list(size = 5)))
 
 
-# leave one cluster out ---------------------------------------------------
+# Set path
+path_to <- ("/home/fabian/alle_shortcut/!MEP/Projekte/EPIC-Potsdam/Diabetes/Lipidomics/MultiLipidScore/AIP/")
+
+path <- str_c(path_to, "Extended_Figure_8")
+
+# Save as pdf
+ggsave(plot = network_figure,
+       glue::glue("{path}.pdf"),
+       device = cairo_pdf,
+       width = 20,
+       height = 12,
+       units = "cm")
+
+# Convert to png and save
+pdftools::pdf_convert(pdf = glue::glue("{path}.pdf"),
+                      filenames = glue::glue("{path}.png"),
+                      format = "png",
+                      dpi = 400)
+
+# generate cluster-specific scores ---------------------------------------------------
 
 df_lips <- read_rds(here::here("data/data_for_clusters.rds"))
 
 cluster_vector <- paste0("cluster_", seq(1, 5))
 
-leave_one_cluster_out <- function(.cluster) {
 
-  cluster_overview <- network %>%
+#' Function to calculate cluster-specific scores i.e. generate score only from lipids
+#' that are in one cluster
+#'
+#' @param .cluster
+#'
+#' @return
+#' @export
+#'
+#' @examples
+make_cluster_score <- function(.cluster) {
+
+  cluster_lipids <- network %>%
     tidygraph::as_tibble() %>%
-    select(name, louvain)
-
-  cluster_lipids <- cluster_overview %>%
     filter(louvain == .cluster) %>%
     pull(name)
 
-  cluster_excluded <- setdiff(cluster_overview$name, cluster_lipids)
-
   weights <- read_rds(here::here("data/weigths_comb_score.rds")) %>%
-    filter(lipid %in% cluster_excluded)
+    filter(lipid %in% cluster_lipids)
 
   lipids_to_score <- df_lips %>%
     select(weights$lipid)
 
   # Calculate score by multiplying weights with respective columns
   return(as.numeric(as.matrix(lipids_to_score) %*% weights$estimate))
+
 }
-
-
-set_cluster_median <- function(.cluster) {
-
-  cluster_overview <- network %>%
-    tidygraph::as_tibble() %>%
-    select(name, louvain)
-
-  cluster_lipids <- cluster_overview %>%
-    filter(louvain != .cluster) %>%
-    pull(name)
-
-  weights <- read_rds(here::here("data/weigths_comb_score.rds"))
-
-  lipids_to_score <- df_lips %>%
-    mutate(across(cluster_lipids, median)) %>%
-    select(weights$lipid)
-
-  # Calculate score by multiplying weights with respective columns
-  return(as.numeric(as.matrix(lipids_to_score) %*% weights$estimate))
-}
-
 
 new_scores <- seq(1, 5) %>%
   set_names(cluster_vector) %>%
-  map_dfc(leave_one_cluster_out) %>%
-  bind_cols(omics_id = df_lips$omics_id, .)
-
-new_scores <- seq(1, 5) %>%
-  set_names(cluster_vector) %>%
-  map_dfc(set_cluster_median) %>%
+  map_dfc(make_cluster_score) %>%
   bind_cols(omics_id = df_lips$omics_id, .)
 
 
-lips <- read_rds(here::here("data/data_for_clusters.rds"))
 
 pheno_df <- read_rds(here::here("data/data_for_analysis.rds")) %>%
   mutate(across(c(epic_cvd, case_diab_caco, fasting, educc3, smk_4cat, alccat,
                   antihyp, lipidlower, ass), as_factor)) %>%
   left_join(new_scores) %>%
-  left_join(lips)
-
-
+  left_join(df_lips)
 
 
 
@@ -192,8 +176,6 @@ cvd_df <- pheno_df %>%
          outcome = epic_cvd) %>%
   mutate(across(c(cluster_vector, comb_score), ~scale(.) %>%
                   as.numeric()))
-
-
 
 
 cox_fct <- function(.score) {
@@ -229,22 +211,21 @@ vars_to_map <- c(cluster_vector, "comb_score") %>%
   set_names(.)
 
 
-leave_one_out_res <- map_dfr(vars_to_map, cox_fct,
-                             .id = "cluster_left_out") %>%
+cluster_res <- map_dfr(vars_to_map, cox_fct,
+                       .id = "cluster") %>%
   select(-term)
 
 
 
-vip_figure <- leave_one_out_res %>%
-  mutate(cluster_left_out = str_replace(cluster_left_out, "comb_score", "Lipidomics score") %>%
-           str_to_sentence() %>%
-           str_replace("_", " ") %>%
-           str_c(" score") %>%
-           str_replace("score score", "score") %>%
+cluster_score_figure <- cluster_res %>%
+  mutate(cluster = if_else(cluster == "comb_score",
+                           "MLS",
+                           str_replace(cluster, "cluster_", "Cluster ") |>
+           str_c(" score")) |>
            fct_rev(),
-         panel = if_else(cluster_left_out == "Lipidomics score", 1, 2)) %>%
+         panel = if_else(cluster == "MLS", 1, 2)) |>
   ggplot() +
-  ggforestplot::geom_stripes(aes(y = cluster_left_out)) +
+  ggforestplot::geom_stripes(aes(y = cluster)) +
   geom_vline(xintercept = 1,
              lty = 2) +
   labs(x = "HR per SD (95%-CI)",
@@ -267,10 +248,10 @@ vip_figure <- leave_one_out_res %>%
         strip.background.y = element_blank(),
         strip.text.y = element_blank()) +
   geom_pointrange(aes(x = estimate,
-                      y = cluster_left_out,
+                      y = cluster,
                       xmin = conf.low,
                       xmax = conf.high,
-                      fill = cluster_left_out),
+                      fill = cluster),
                   orientation = "y",
                   shape = 22,
                   show.legend = FALSE) +
@@ -281,115 +262,25 @@ vip_figure <- leave_one_out_res %>%
                            map_dbl(seq(0.6, 1, 0.1), ~1/.) %>% round(digits = 1)))
 
 
+library(patchwork)
 
-# single lipid assocs -----------------------------------------------------
-
-display_names <- read_rds(here::here("data/weigths_comb_score.rds")) %>%
-  select(lipid, lipid_display)
-
-
-single_lips <- lips %>%
-  select(-c(omics_id, ia_subcohort)) %>%
-  names() %>%
-  set_names(.)
+# old multipanel figure
+# figure <- network_figure + cluster_score_figure + patchwork::plot_annotation(tag_levels = "A")  +
+#   patchwork::plot_layout(ncol = 1,
+#                          heights = c(3,1))
 
 
-single_lip_res <- map_dfr(single_lips, cox_fct,
-                          .id = "lipid") %>%
-  select(-term) %>%
-  left_join(display_names) %>%
-  left_join(network %>%
-              activate(nodes) %>%
-              as_tibble(),
-            by = c("lipid" = "name"))
+# Set path
+path_to <- ("/home/fabian/alle_shortcut/!MEP/Projekte/EPIC-Potsdam/Diabetes/Lipidomics/MultiLipidScore/AIP/")
 
-
-
-single_lip_res %>%
-  write_rds(here::here("data/cluster.info.rds"))
-
-
-
-
-order <- single_lip_res %>%
-  select(lipid, lipid_display, louvain) %>%
-  separate(lipid_display, into = c("base", "l", "db"),
-           remove = FALSE,
-           extra = "drop") %>%
-  mutate(l = str_remove(l, "FA"),
-         base = reorder_base_new(base)) %>%
-  arrange(louvain, fct_rev(base), l, db)
-
-
-
-netcoupler_direct_effects <- read_rds(file = here::here("doc/netcoupler_direct_effects.rds"))
-
-
-single_assocs <- single_lip_res %>%
-  mutate(nc = case_when(outcome == "CVD" & lipid %in% netcoupler_direct_effects$cvd ~ TRUE,
-                        outcome == "Type 2 diabetes" & lipid %in% netcoupler_direct_effects$diab ~ TRUE,
-                        TRUE ~ FALSE)) %>%
-  ggplot() +
-  facet_wrap(~outcome,
-             ncol = 2) +
-  geom_vline(xintercept = 1,
-             lty = 2) +
-  labs(x = "HR per SD (95%-CI)",
-       y = NULL) +
-  theme_light(base_family = "RobotoCondensed-Regular") +
-  scale_fill_manual(values = paletteer::paletteer_d("fishualize::Cirrhilabrus_solorensis",
-                                                    direction = 1)) +
-  theme(panel.background = element_blank(),
-        panel.grid.major = element_line(size = 0.1),
-        panel.grid = element_line(color = "grey70"),
-        panel.grid.minor = element_blank(),
-        legend.position = "bottom",
-        axis.ticks.y = element_blank(),
-        legend.background = element_blank(),
-        legend.key = element_blank(),
-        axis.ticks.x = element_blank(),
-        axis.text = element_text(color = "#333333"),
-        strip.background = element_rect(fill = "#333333"),
-        panel.grid.major.y = element_blank(),
-        strip.background.y = element_blank(),
-        strip.text.y = element_blank()) +
-  geom_pointrange(aes(x = estimate,
-                      y = fct_rev(fct_relevel(lipid_display, unique(order$lipid_display))),
-                      xmin = conf.low,
-                      xmax = conf.high,
-                      fill = louvain),
-                  shape = 22,
-                  show.legend = FALSE) +
-  geom_point(data = function(x) filter(x, nc == TRUE),
-             shape = 8,
-             color = "red",
-             aes(x = conf.high + (conf.high * 0.2),
-                 y = fct_rev(fct_relevel(lipid_display, unique(order$lipid_display))))) +
-  scale_x_log10(breaks = c(0.3, 1, 3, 8))
-
-
-
-
-library(cowplot)
-figure_3 <- cowplot::plot_grid(network_figure,
-                               vip_figure,
-                               ncol = 1,
-                               rel_heights = c(3,1),
-                               labels = c("A", "B"))
-
-
-
-
-
-# Set path fig 3
-path <- here::here("doc", "Figures", "ext_fig4")
+path <- str_c(path_to, "Extended_Figure_9")
 
 # Save as pdf
-ggsave(plot = figure_3,
+ggsave(plot = cluster_score_figure,
        glue::glue("{path}.pdf"),
        device = cairo_pdf,
        width = 20,
-       height = 20,
+       height = 10,
        units = "cm")
 
 # Convert to png and save
@@ -397,29 +288,3 @@ pdftools::pdf_convert(pdf = glue::glue("{path}.pdf"),
                       filenames = glue::glue("{path}.png"),
                       format = "png",
                       dpi = 400)
-
-
-
-
-
-# Set path fig 4
-path <- here::here("doc", "Figures", "ext_fig5")
-
-# Save as pdf
-ggsave(plot = single_assocs,
-       glue::glue("{path}.pdf"),
-       device = cairo_pdf,
-       width = 15,
-       height = 20,
-       units = "cm")
-
-# Convert to png and save
-pdftools::pdf_convert(pdf = glue::glue("{path}.pdf"),
-                      filenames = glue::glue("{path}.png"),
-                      format = "png",
-                      dpi = 400)
-
-
-
-
-

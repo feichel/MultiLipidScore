@@ -6,11 +6,10 @@ library(corrr)
 # data
 data_for_analysis <- read_rds(here::here("data/data_for_analysis.rds")) %>%
   filter(ia_subcohort == 1) %>%
-  select(contains("group"), mufa_score, pufa_score, comb_score, sex, age, bmi, waist, height,
+  select(contains("group"),  comb_score, sex, age, bmi, waist, height,
          contains("corr"), non_hdl, syst, diast, aktiv) %>%
-  rename_food_groups()  %>%
-  mutate(across(c(mufa_score, pufa_score, comb_score), ~scale(.) %>%
-                  as.numeric()))
+  rename_food_groups()
+
 
 
 # Raw distribution figure -------------------------------------------------
@@ -29,10 +28,10 @@ raw_dist <- data_for_analysis %>%
                     dotsize = 1.5,
                     show.legend = FALSE) +
   labs(y = NULL,
-       x = "Multi-lipid score [Z-scores]") +
+       x = "Multi-lipid score") +
   theme_light(base_family = "RobotoCondensed-Regular") +
-  scale_x_continuous(breaks = seq(-5, 5, 2.5),
-                     limits = c(-5, 5)) +
+  # scale_x_continuous(breaks = seq(-5, 5, 2.5),
+  #                    limits = c(-5, 5)) +
   scale_color_manual(values = c("MUFA score" = "#ffba00",
                                 "Mixed UFA score" = "#00e8ab",
                                 "UFA score" = "grey80")) +
@@ -68,7 +67,7 @@ fig_sex_diff <- data_for_analysis %>%
   scale_fill_manual(values = c("Women" = "#e39dff",
                                "Men" = "#3fbea7")) +
   theme_light(base_family = "RobotoCondensed-Regular") +
-  labs(x = "Multi-lipid score [Z-scores]",
+  labs(x = "Multi-lipid score",
        y = NULL) +
   theme(panel.background = element_blank(),
         panel.grid.major = element_line(size = 0.1),
@@ -84,19 +83,23 @@ fig_sex_diff <- data_for_analysis %>%
 
 covar_corr <- data_for_analysis %>%
   select(comb_score, bmi, waist, age, non_hdl, corr_chol,
-         corr_trigly, corr_hdl, syst, diast) %>%
+         corr_trigly, corr_hdl, syst, diast, corr_glucose, corr_hba1c, corr_hscrp) %>%
   correlate(method = "spearman", use = "pairwise.complete.obs", quiet = TRUE) %>%
   focus(comb_score) %>%
   pivot_longer(-term) %>%
   mutate(term = str_replace(term, "bmi", "BMI") %>%
-           str_replace("waist", "WC") %>%
+           str_replace("waist", "Waist circumference") %>%
            str_replace("syst", "Systolic BP") %>%
            str_replace("diast", "Diastolic BP") %>%
            str_replace("age", "Age") %>%
            str_replace("non_hdl", "Non-HDL-C") %>%
            str_replace("corr_chol", "TC") %>%
            str_replace("corr_trigly", "TG") %>%
-           str_replace("corr_hdl", "HDL-C")) %>%
+           str_replace("corr_hdl", "HDL-C") |>
+           str_replace("corr_glucose", "Glucose") |>
+           str_replace("corr_hba1c", "HbA1c") |>
+           str_replace("corr_hscrp", "hsCRP")
+           ) %>%
   ggplot(aes(x = value,
              y = fct_reorder(term, value))) +
   scale_y_discrete(position = "right", expand = c(0, 0)) +
@@ -159,17 +162,10 @@ foods_to_remove <- c("Beer", "Water", "Fruit juice", "Spirits", "Low energy soft
                      "De caf coffee", "Wine", "Coffee", "Tea")
 
 
-
-
-
 food_corr <- corr_df %>%
   mutate(highlight = case_when(term == "Butter" ~ "red",
                                term == "Margarine" ~ "blue",
                                TRUE ~ "black")) |>
-  # filter(!term %in% foods_to_remove) %>%
-  # group_by(value < 0) %>%
-  # slice_max(abs(value),
-  #           n = 5) %>%
   ggplot(aes(y = value,
              x = fct_reorder(term, value),
              color = highlight)) +
@@ -233,7 +229,9 @@ figure <- raw_dist + fig_sex_diff + covar_corr + food_corr +
 
 
 # Set path
-path <- here::here("doc", "Figures", "Figure_3")
+path_to <- ("/home/fabian/alle_shortcut/!MEP/Projekte/EPIC-Potsdam/Diabetes/Lipidomics/MultiLipidScore/AIP/")
+
+path <- str_c(path_to, "Figure_3")
 
 # Save as pdf
 ggsave(plot = figure,

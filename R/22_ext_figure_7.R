@@ -5,14 +5,14 @@ library(tidyverse)
 paths <- c(here::here("data/fabian/nutrient_subst_table_pooled.csv"),
            here::here("data/fabian/nutrient_subst_table_nhs1.csv"),
            here::here("data/fabian/nutrient_subst_table_nhs2.csv")) |>
-  set_names(c("Pooled", "NHS1", "NHS2"))
+  set_names(c("Pooled", "NHS", "NHSII"))
 
 extended_substitution <- map_dfr(paths, read_csv,
                                  .id = "path") |>
   filter(str_detect(term, "^pe_from")) |>
-  mutate(term = case_when(term == "pe_from_ufa_av" ~ " For unsaturated fat",
-                          term == "pe_from_prot_av" ~ "For protein",
-                          term == "pe_from_carbsav" ~ "For carbohydrates")) %>%
+  mutate(term = case_when(term == "pe_from_ufa_av" ~ " With unsaturated fat",
+                          term == "pe_from_prot_av" ~ "With protein",
+                          term == "pe_from_carbsav" ~ "With carbohydrates")) %>%
   ggplot(aes(y = term,
              x = beta,
              xmin = LCL,
@@ -28,7 +28,7 @@ extended_substitution <- map_dfr(paths, read_csv,
                      labels = seq(0, 1.2, 0.2),
                      breaks = seq(0, 1.2, 0.2),
                      expand = c(0, 0)) +
-  scale_fill_manual(breaks = c("NHS1", "NHS2", "Pooled"),
+  scale_fill_manual(breaks = c("NHS", "NHSII", "Pooled"),
                     values = c("yellow", "red", "blue3")) +
   theme_light(base_family = "RobotoCondensed-Regular") +
   theme(panel.background = element_blank(),
@@ -43,7 +43,9 @@ extended_substitution <- map_dfr(paths, read_csv,
 
 
 # Set path
-path <- here::here("doc", "Figures", "predimed_extended")
+path_to <- ("/home/fabian/alle_shortcut/!MEP/Projekte/EPIC-Potsdam/Diabetes/Lipidomics/MultiLipidScore/AIP/")
+
+path <- str_c(path_to, "Extended_Figure_7")
 
 # Save as pdf
 ggsave(plot = extended_substitution,

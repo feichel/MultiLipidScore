@@ -63,7 +63,7 @@ matched_epic_predimed <- read_rds(here::here("matched_epic_predimed.rds")) %>%
 weights_matched <- weights %>%
   filter(lipid_display %in% matched_epic_predimed$within_class_fa_sum)
 
-# write for clemens
+# write
 weights_matched %>%
   write_tsv(here::here("data/weights_for_reduced_score.tsv"))
 

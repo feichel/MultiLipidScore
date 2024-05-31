@@ -87,7 +87,9 @@ figure <- temp %>%
 
 
 # Set path
-path <- here::here("doc", "Figures", "ext_fig2")
+path_to <- ("/home/fabian/alle_shortcut/!MEP/Projekte/EPIC-Potsdam/Diabetes/Lipidomics/MultiLipidScore/AIP/")
+
+path <- str_c(path_to, "Extended_Figure_4")
 
 # Save as pdf
 ggsave(plot = figure,

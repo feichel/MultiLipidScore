@@ -1,28 +1,12 @@
 # Functions and packages
 library(tidyverse)
 
-# Load data
-data_for_analysis <- read_rds(here::here("data/data_for_analysis.rds"))
-
-
-
 
 
 # Prep phenotype data
-pheno_df <- data_for_analysis %>%
-  mutate(across(c(epic_cvd, case_diab_caco, fasting, educc3, smk_4cat, alccat,
-                  antihyp, lipidlower, ass), as_factor)) %>%
-  mutate(across(c(
-    "corr_trigly",
-    "corr_chol",
-    "corr_hdl",
-    "corr_hscrp",
-    "non_hdl"), ~log(.) %>%
-      #scale() %>%
-      as.numeric()),
-    comb_score_non_hdl = (comb_score + (non_hdl * -0.11))/3.48,
-    comb_score = comb_score/3.48,
-    non_hdl = non_hdl / -0.11) # this is the effect seen in DIVAS
+pheno_df <- read_rds(here::here("data/sphingolipid_score_epic.rds")) %>%
+  mutate(comb_score_non_hdl = (sphingolipid_score + (non_hdl * -0.11))/0.355,
+         non_hdl = non_hdl / -0.11) # this is the effect seen in DIVAS
 
 
 
@@ -44,8 +28,6 @@ cvd_df <- pheno_df %>%
   rename(start = start_time_cvd,
          stop = stop_time_cvd,
          outcome = epic_cvd)
-
-
 
 
 # Models
@@ -221,15 +203,6 @@ coeffs <- c(diab_res, cvd_res) %>%
                        conf.level = 0.95),
           .id = "model")
 
-# check sex interaction
-
-coeffs %>%
-  filter(str_detect(term, "score")) %>%
-  filter(str_detect(term, "sex")) %>%
-  select(model, term, p.value) %>%
-  gt::gt(.) %>%
-  gt::gtsave(here::here("doc/interaction_sex.png"))
-# no interaction!
 
 # rename models and filter
 temp <- coeffs %>%
@@ -257,9 +230,8 @@ temp <- coeffs %>%
 
 # Save temporary results
 temp %>%
-  # select(-model) %>%
   select(outcome, score, term, model_names, everything()) %>%
-  write_tsv(here::here("doc/Tables/cox_main_results.tsv"))
+  write_tsv(here::here("doc/Tables/cox_sphingo_results.tsv"))
 
 
 # figure
@@ -384,9 +356,9 @@ figure <- ggarrange(cox_figure, reduction_fig, ncol = 1,
                     heights = c(1, 0.7))
 
 # Set path
-path_to <- ("/home/fabian/alle_shortcut/!MEP/Projekte/EPIC-Potsdam/Diabetes/Lipidomics/MultiLipidScore/AIP/")
+path_to <- ("/home/fabian/alle_shortcut/!MEP/Projekte/EPIC-Potsdam/Diabetes/Lipidomics/MultiLipidScore/Revision_1/")
 
-path <- str_c(path_to, "Figure_4")
+path <- str_c(path_to, "Figure_4_sphingo")
 
 # Save as pdf
 ggsave(plot = figure,
@@ -401,47 +373,6 @@ pdftools::pdf_convert(pdf = glue::glue("{path}.pdf"),
                       filenames = glue::glue("{path}.png"),
                       format = "png",
                       dpi = 400)
-
-
-
-
-# info for text
-coeffs %>%
-  separate(model, into = c("outcome", "score", "model")) %>%
-  mutate(outcome = if_else(outcome == "diab", "Type 2 diabetes", "CVD"),
-         model = as.double(model) ,
-         model_names = case_when(
-           model == 1 ~ "Age & Sex",
-           model == 2 ~ "Multivariable adjusted (MV)",
-           model == 3 ~ "MV interact sex",
-           model == 4 ~ "MV + TG",
-           model == 5 ~ "MV + TC",
-           model == 6 ~ "MV + HDL-C",
-           model == 7 ~ "MV + Non-HDL-C",
-           model == 8 ~ "MV + HDL + TC + TG",
-           model == 9 ~ "MV + HbA1c",
-           model == 10 ~ "MV + HDL + TC + TG + HbA1c",
-           model == 11 ~ "MV + hsCRP",
-           model == 12 ~ "non_hdl_lipidomics_score",
-           model == 13 ~ "Non-HDL-C")) %>%
-  filter(model %in% c(2, 7, 12, 13),
-         str_detect(term, "score|non_hdl")) %>%
-  mutate(panel = case_when(model %in% c(2, 13) ~ "Separately",
-                           model == 7 ~ "Mutually adjusted",
-                           model == 12 ~ "Unified score") %>%
-           fct_relevel(c("Separately",
-                         "Mutually adjusted",
-                         "Unified score")),
-         term = case_when(term == "comb_score" ~ "UFA lipidomics score",
-                          term == "non_hdl" ~ "Non-HDL-C",
-                          term == "comb_score_non_hdl" ~ "Unified score")) %>%
-  filter(panel == "Separately",
-         model_names == "Non-HDL-C") %>%
-  select(outcome, term, estimate, conf.low, conf.high) %>%
-  mutate(across(c(estimate, conf.low, conf.high), ~ 1 - .x %>%
-                  round(3)))
-
-
 
 
 

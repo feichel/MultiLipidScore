@@ -251,74 +251,78 @@ temp <- c(cvd_res, diab_res) %>%
 
 # Save temporary results
 temp %>%
-  select(-c(model, term)) %>%
+  select(-c(term)) %>%
   select(outcome, score, model_names, everything()) %>%
   write_tsv(here::here("doc/Tables/cox_mls_rmls.tsv"))
 
-figure <- temp %>%
-  mutate(label = paste0(sprintf('%.2f', round(estimate, 2)),
-                        " (",
-                        sprintf('%.2f', round(conf.low, 2)),
-                        ", ",
-                        sprintf('%.2f', round(conf.high, 2)),
-                        ")")) %>%
-  ggplot() +
-  ggforestplot::geom_stripes(aes(y = fct_rev(score))) +
-  geom_vline(xintercept = 1,
-             lty = 2) +
-  labs(x = NULL,
-       y = NULL,
-       fill = NULL) +
-  theme_light(base_family = "RobotoCondensed-Regular") +
-  theme(panel.background = element_blank(),
-        panel.grid.major = element_line(size = 0.1),
-        panel.grid = element_line(color = "grey70"),
-        panel.grid.minor = element_blank(),
-        legend.position = "bottom",
-        axis.ticks.y = element_blank(),
-        legend.background = element_blank(),
-        legend.key = element_blank(),
-        axis.ticks.x = element_blank(),
-        axis.text = element_text(color = "#333333"),
-        axis.text.y = element_text(hjust = 0),
-        strip.background = element_rect(fill = "#333333"),
-        panel.grid.major.y = element_blank()) +
-  geom_pointrange(aes(x = estimate,
-                      y = fct_rev(score),
-                      xmin = conf.low,
-                      xmax = conf.high),
-                  orientation = "y",
-                  shape = "square") +
-  facet_wrap(~fct_reorder(model_names, model),
-             ncol = 1,
-             scales = "free_y") +
-  scale_x_log10(breaks = c(c(0.6, 0.8, 1),
-                           map_dbl(c(0.6, 0.8, 1), ~1/.) %>% round(digits = 1))) +
-  labs(x = "HR per SD (95%-CI)",
-       y = NULL) +
-  geom_text(inherit.aes = FALSE,
-            aes(y = fct_rev(score),
-                x = 0.3,
-                label = label),
-            hjust = 0)
 
 
 
-# Set path
-path <- here::here("doc", "Figures", "mls_vs_rmls")
-
-# Save as pdf
-ggsave(plot = figure,
-       glue::glue("{path}.pdf"),
-       device = cairo_pdf,
-       width = 22,
-       height = 20,
-       units = "cm")
-
-# Convert to png and save
-pdftools::pdf_convert(pdf = glue::glue("{path}.pdf"),
-                      filenames = glue::glue("{path}.png"),
-                      format = "png",
-                      dpi = 400)
+#
+# figure <- temp %>%
+#   mutate(label = paste0(sprintf('%.2f', round(estimate, 2)),
+#                         " (",
+#                         sprintf('%.2f', round(conf.low, 2)),
+#                         ", ",
+#                         sprintf('%.2f', round(conf.high, 2)),
+#                         ")")) %>%
+#   ggplot() +
+#   ggforestplot::geom_stripes(aes(y = fct_rev(score))) +
+#   geom_vline(xintercept = 1,
+#              lty = 2) +
+#   labs(x = NULL,
+#        y = NULL,
+#        fill = NULL) +
+#   theme_light(base_family = "RobotoCondensed-Regular") +
+#   theme(panel.background = element_blank(),
+#         panel.grid.major = element_line(size = 0.1),
+#         panel.grid = element_line(color = "grey70"),
+#         panel.grid.minor = element_blank(),
+#         legend.position = "bottom",
+#         axis.ticks.y = element_blank(),
+#         legend.background = element_blank(),
+#         legend.key = element_blank(),
+#         axis.ticks.x = element_blank(),
+#         axis.text = element_text(color = "#333333"),
+#         axis.text.y = element_text(hjust = 0),
+#         strip.background = element_rect(fill = "#333333"),
+#         panel.grid.major.y = element_blank()) +
+#   geom_pointrange(aes(x = estimate,
+#                       y = fct_rev(score),
+#                       xmin = conf.low,
+#                       xmax = conf.high),
+#                   orientation = "y",
+#                   shape = "square") +
+#   facet_wrap(~fct_reorder(model_names, model),
+#              ncol = 1,
+#              scales = "free_y") +
+#   scale_x_log10(breaks = c(c(0.6, 0.8, 1),
+#                            map_dbl(c(0.6, 0.8, 1), ~1/.) %>% round(digits = 1))) +
+#   labs(x = "HR per SD (95%-CI)",
+#        y = NULL) +
+#   geom_text(inherit.aes = FALSE,
+#             aes(y = fct_rev(score),
+#                 x = 0.3,
+#                 label = label),
+#             hjust = 0)
+#
+#
+#
+# # Set path
+# path <- here::here("doc", "Figures", "mls_vs_rmls")
+#
+# # Save as pdf
+# ggsave(plot = figure,
+#        glue::glue("{path}.pdf"),
+#        device = cairo_pdf,
+#        width = 22,
+#        height = 20,
+#        units = "cm")
+#
+# # Convert to png and save
+# pdftools::pdf_convert(pdf = glue::glue("{path}.pdf"),
+#                       filenames = glue::glue("{path}.png"),
+#                       format = "png",
+#                       dpi = 400)
 
 
